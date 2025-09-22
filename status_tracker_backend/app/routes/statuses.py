@@ -16,7 +16,11 @@ blp = Blueprint(
 
 def _can_access(status: Status, claims) -> bool:
     """Check if current user can access the status."""
-    return status.user_id == int(claims["sub"]) or claims.get("is_admin", False)
+    try:
+        return status.user_id == int(claims["sub"]) or claims.get("is_admin", False)
+    except Exception:
+        # If identity is not numeric (e.g., Supabase UUID), fall back to admin requirement only
+        return claims.get("is_admin", False)
 
 
 @blp.route("")
@@ -30,14 +34,18 @@ class StatusList(MethodView):
         # PUBLIC_INTERFACE
         """List statuses with optional state filter."""
         claims = get_jwt()
-        state = None
         from flask import request
         state = request.args.get("state")
         q = Status.query
         if state:
             q = q.filter(Status.state == state)
         if not claims.get("is_admin"):
-            q = q.filter(Status.user_id == int(get_jwt_identity()))
+            # If identity not numeric, user will see none until mapping is implemented
+            try:
+                uid = int(get_jwt_identity())
+                q = q.filter(Status.user_id == uid)
+            except Exception:
+                q = q.filter(Status.user_id == -1)
         q = q.order_by(Status.created_at.desc())
         items, _ = paginate_query(q)
         return items
@@ -49,7 +57,10 @@ class StatusList(MethodView):
     def post(self, payload):
         # PUBLIC_INTERFACE
         """Create a status."""
-        uid = int(get_jwt_identity())
+        try:
+            uid = int(get_jwt_identity())
+        except Exception:
+            abort(400, message="Cannot create status without a numeric local user mapping.")
         status = Status(
             title=payload["title"].strip(),
             description=payload.get("description"),

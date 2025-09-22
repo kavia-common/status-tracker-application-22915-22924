@@ -27,27 +27,27 @@ class UsersList(MethodView):
         """List users (admin only)."""
         require_admin()
         items, meta = paginate_query(User.query.order_by(User.created_at.desc()))
-        # Include pagination metadata via header-like structure: flask-smorest does not manage headers easily
-        # Clients can compute pagination based on response length and optional meta endpoint; for simplicity, return as object
-        return items  # In real app, consider wrapping with {"items": items, "meta": meta}
+        return items
 
     @jwt_required()
     @blp.arguments(UserCreateSchema)
     @blp.response(201, UserBaseSchema)
-    @blp.doc(summary="Create user", description="Admin-only create a new user.")
+    @blp.doc(summary="Create user", description="Admin-only create a new user (local record only; auth handled by Supabase).")
     def post(self, payload):
         # PUBLIC_INTERFACE
-        """Create user (admin only)."""
+        """Create user (admin only). Local record only.
+
+        Note: Authentication and password storage are handled by Supabase now.
+        """
         require_admin()
         email = payload["email"].lower().strip()
         name = payload["name"].strip()
-        password = payload["password"]
 
         if User.query.filter_by(email=email).first():
             abort(409, message="Email already registered.")
 
         user = User(email=email, name=name)
-        user.set_password(password)
+        # Do not set or store local passwords anymore
         db.session.add(user)
         db.session.commit()
         return user
@@ -63,23 +63,37 @@ class Me(MethodView):
     def get(self):
         # PUBLIC_INTERFACE
         """Get self profile."""
-        uid = int(get_jwt_identity())
-        user = User.query.get_or_404(uid)
+        uid = get_jwt_identity()
+        # local table may not have UUIDs; try to fallback with email if needed
+        user = None
+        try:
+            # if identity was numeric, try integer lookup
+            user = User.query.get(int(uid))
+        except Exception:
+            # Otherwise fall back to email
+            user = User.query.filter_by(email=str(uid)).first()
+        if not user:
+            abort(404, message="User profile not found in local store.")
         return user
 
     @jwt_required()
     @blp.arguments(UserUpdateSchema)
     @blp.response(200, UserBaseSchema)
-    @blp.doc(summary="Update current user", description="Update name or password for the authenticated user.")
+    @blp.doc(summary="Update current user", description="Update name for the authenticated user. Password changes must be done via Supabase.")
     def patch(self, payload):
         # PUBLIC_INTERFACE
-        """Update self profile."""
-        uid = int(get_jwt_identity())
-        user = User.query.get_or_404(uid)
+        """Update self profile (name only)."""
+        uid = get_jwt_identity()
+        user = None
+        try:
+            user = User.query.get(int(uid))
+        except Exception:
+            user = User.query.filter_by(email=str(uid)).first()
+        if not user:
+            abort(404, message="User profile not found in local store.")
         if "name" in payload:
             user.name = payload["name"].strip()
-        if "password" in payload and payload["password"]:
-            user.set_password(payload["password"])
+        # Ignore password updates here; handled by Supabase outside this API
         db.session.commit()
         return user
 
@@ -101,7 +115,7 @@ class UserDetail(MethodView):
     @jwt_required()
     @blp.arguments(UserUpdateSchema)
     @blp.response(200, UserBaseSchema)
-    @blp.doc(summary="Update user", description="Admin-only update fields including is_active and is_admin.")
+    @blp.doc(summary="Update user", description="Admin-only update fields including is_active and is_admin. Password not managed locally.")
     def patch(self, payload, user_id):
         # PUBLIC_INTERFACE
         """Update user (admin)."""
@@ -109,8 +123,6 @@ class UserDetail(MethodView):
         user = User.query.get_or_404(user_id)
         if "name" in payload:
             user.name = payload["name"].strip()
-        if "password" in payload and payload["password"]:
-            user.set_password(payload["password"])
         if "is_active" in payload:
             user.is_active = bool(payload["is_active"])
         if "is_admin" in payload:

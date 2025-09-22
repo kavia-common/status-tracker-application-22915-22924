@@ -23,3 +23,6 @@ class Config:
 
     # CORS
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*")
+
+    # Optional site URL for email redirect on Supabase signup email confirmation
+    SITE_URL = os.getenv("SITE_URL")
