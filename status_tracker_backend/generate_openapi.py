@@ -1,9 +1,14 @@
 import json
 import os
-from app import app, api  # import your Flask app and Api instance
+from app import create_app  # app factory
+
+app = create_app()
 
 with app.app_context():
-    # flask-smorest stores the spec in api.spec
+    # flask-smorest stores the spec via app.extensions. Extract spec from the registered Api instance.
+    api = next((ext for ext in app.extensions.get("flask-smorest", []) if hasattr(ext, "spec")), None)
+    if api is None:
+        raise RuntimeError("API spec not found. Ensure Api is initialized.")
     openapi_spec = api.spec.to_dict()
 
     output_dir = "interfaces"
