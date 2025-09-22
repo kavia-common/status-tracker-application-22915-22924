@@ -1,6 +1,6 @@
 from flask_smorest import Blueprint, abort
 from flask.views import MethodView
-from flask import jsonify
+from flask import jsonify, request
 from flask_jwt_extended import (
     create_access_token,
     create_refresh_token,
@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 from ..extensions import db, jwt
 from ..models import User
-from ..schemas import AuthLoginSchema, AuthTokensSchema, UserCreateSchema, UserBaseSchema
+from ..schemas import AuthTokensSchema, UserCreateSchema, UserBaseSchema
 
 blp = Blueprint(
     "Auth",
@@ -63,14 +63,37 @@ class SignUp(MethodView):
 class Login(MethodView):
     """Login to obtain access and refresh tokens."""
 
-    @blp.arguments(AuthLoginSchema)
+    # Keep response schema for success. We will manually parse payload to be flexible with frontend variations.
     @blp.response(200, AuthTokensSchema)
-    @blp.doc(summary="Login", description="Authenticate with email and password; returns JWT tokens.")
-    def post(self, body):
+    @blp.doc(
+        summary="Login",
+        description="Authenticate with email/username and password; accepts JSON or form-encoded bodies. Returns JWT tokens."
+    )
+    def post(self):
         # PUBLIC_INTERFACE
-        """Authenticate and generate tokens."""
-        email = body["email"].lower().strip()
-        password = body["password"]
+        """Authenticate and generate tokens.
+
+        Accepts:
+        - application/json: {email, password} or {username, password}
+        - application/x-www-form-urlencoded or multipart/form-data: email/password or username/password
+        """
+        # Try JSON first
+        email = None
+        password = None
+
+        if request.is_json:
+            data = request.get_json(silent=True) or {}
+        else:
+            # Support form submissions
+            data = request.form or {}
+
+        # Map common aliases
+        email = (data.get("email") or data.get("username") or "").strip().lower()
+        password = data.get("password")
+
+        # Validate presence
+        if not email or not password:
+            abort(422, message="Missing required fields: email (or username) and password.")
 
         user = User.query.filter_by(email=email, is_active=True).first()
         if not user or not user.check_password(password):
