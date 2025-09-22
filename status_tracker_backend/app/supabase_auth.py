@@ -15,7 +15,7 @@ def _get_supabase_env() -> Tuple[str, str]:
 
 
 def _default_headers(api_key: str) -> Dict[str, str]:
-    """Common headers for Supabase auth API calls."""
+    """Common headers for Supabase auth API calls invoked server-side (admin endpoints)."""
     return {
         "apikey": api_key,
         "Authorization": f"Bearer {api_key}",

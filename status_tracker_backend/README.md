@@ -16,12 +16,17 @@ Environment variables: see `.env.example`.
 
 Auth via Supabase:
 - Required env vars:
-  - SUPABASE_URL
-  - SUPABASE_KEY
-  - Optional: SITE_URL (used for email confirmation redirect during signup)
+  - SUPABASE_URL (e.g., https://xyzcompany.supabase.co)
+  - SUPABASE_KEY (recommended: service_role key, used only server-side)
+  - Optional: SITE_URL (used for email confirmation redirect during signup, must be allowlisted in Supabase)
+  - JWT_SECRET_KEY (for app JWTs)
+  - CORS_ORIGINS (comma-separated list)
 - Signup and login call Supabase REST auth endpoints. The backend issues its own JWTs for protecting internal routes.
 - Local password storage/checks are disabled. Password changes must be handled through Supabase.
-- To sign out, the backend can revoke Supabase session if the client provides `X-Supabase-Token` header with the current Supabase access token.
+- Logout: provide `X-Supabase-Token` header with the user’s Supabase access token so backend can call `/auth/v1/logout`.
+- Supabase Dashboard > Authentication > URL Configuration:
+  - Site URL: http://localhost:3000/ (dev)
+  - Additional Redirect URLs: include http://localhost:5000/** if backend sends email links
 
 Key endpoints (prefix /api):
 - POST /api/auth/signup

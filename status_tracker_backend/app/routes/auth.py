@@ -53,6 +53,7 @@ class SignUp(MethodView):
         password = body["password"]
 
         # Optional email redirect for confirmation links
+        # Ensure SITE_URL is added to Supabase Auth Redirect URLs allowlist in the Dashboard
         site_url = current_app.config.get("SITE_URL")
         supabase_resp = supabase_signup(email=email, password=password, name=name, email_redirect_to=site_url)
 
