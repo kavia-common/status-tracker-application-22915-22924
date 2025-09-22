@@ -1,0 +1,4 @@
+{
+    "command": "pytest",
+    "working_directory": "/home/kavia/workspace/code-generation/status-tracker-application-22915-22924/status_tracker_backend"
+}
