@@ -12,6 +12,10 @@ Run locally:
 4. Start the server: `python run.py`
 5. Open API docs at `/docs`
 
+Run tests:
+- CI/non-interactive: `pytest -q`
+- Locally, tests mock Supabase HTTP calls so no real Supabase project is required. Ensure at least JWT_SECRET_KEY is set or rely on tests setting it via monkeypatch.
+
 Environment variables: see `.env.example`.
 
 Auth via Supabase:
